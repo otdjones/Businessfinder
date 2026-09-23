@@ -45,6 +45,7 @@
         "minimumReviews": {
             "title": "Minimum review count",
             "type": "integer",
+            "description": "Exclude businesses with fewer Google reviews than this number.",
             "editor": "number",
             "minimum": 0,
             "maximum": 1000000,
