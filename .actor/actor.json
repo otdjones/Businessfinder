@@ -1,0 +1,24 @@
+{
+    "$schema": "https://apify.com/schemas/v1/actor.ide.json",
+    "actorSpecification": 1,
+    "name": "businessfinder",
+    "title": "Businessfinder — Maps Leads & Outreach",
+    "description": "Finds local businesses through Google Maps, refines public business contact details, and prepares or sends permission-aware email outreach.",
+    "version": "0.1",
+    "buildTag": "latest",
+    "usesStandbyMode": false,
+    "meta": {
+        "templateId": "js-empty",
+        "generatedBy": "OpenAI Codex"
+    },
+    "input": "./input_schema.json",
+    "output": "./output_schema.json",
+    "storages": {
+        "dataset": "./dataset_schema.json"
+    },
+    "dockerfile": "../Dockerfile",
+    "readme": "../README.md",
+    "defaultMemoryMbytes": 512,
+    "minMemoryMbytes": 256,
+    "maxMemoryMbytes": 1024
+}

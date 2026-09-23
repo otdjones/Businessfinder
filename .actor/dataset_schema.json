@@ -1,0 +1,30 @@
+{
+    "$schema": "https://apify.com/schemas/v1/dataset.ide.json",
+    "actorSpecification": 1,
+    "fields": {
+        "schema_version": { "type": "string" },
+        "business": { "type": "object" },
+        "contacts": { "type": "object" },
+        "qualification": { "type": "object" },
+        "outreach": { "type": "object" },
+        "provenance": { "type": "object" }
+    },
+    "views": {
+        "overview": {
+            "title": "Qualified business leads",
+            "transformation": {
+                "fields": ["business", "contacts", "qualification", "outreach", "provenance"]
+            },
+            "display": {
+                "component": "table",
+                "properties": {
+                    "business": { "label": "Business", "format": "object" },
+                    "contacts": { "label": "Contacts", "format": "object" },
+                    "qualification": { "label": "Qualification", "format": "object" },
+                    "outreach": { "label": "Outreach", "format": "object" },
+                    "provenance": { "label": "Provenance", "format": "object" }
+                }
+            }
+        }
+    }
+}

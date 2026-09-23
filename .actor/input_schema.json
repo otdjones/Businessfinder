@@ -1,0 +1,76 @@
+{
+    "$schema": "https://apify.com/schemas/v1/input.ide.json",
+    "title": "Businessfinder input",
+    "description": "Search Google Maps for businesses, refine public business contact details, and optionally prepare or send outreach.",
+    "type": "object",
+    "schemaVersion": 1,
+    "additionalProperties": false,
+    "properties": {
+        "searchTerms": {
+            "title": "Business types",
+            "type": "array",
+            "description": "Use distinct business types, for example accountants and commercial cleaners.",
+            "editor": "stringList",
+            "minItems": 1,
+            "maxItems": 20,
+            "prefill": ["independent garden centre", "landscape gardener"]
+        },
+        "location": {
+            "title": "Location",
+            "type": "string",
+            "description": "A town, city, county, or country. Keep the business type out of this field.",
+            "editor": "textfield",
+            "minLength": 2,
+            "maxLength": 160,
+            "prefill": "Bristol, United Kingdom"
+        },
+        "maxResultsPerSearch": {
+            "title": "Maximum places per search term",
+            "type": "integer",
+            "description": "A hard cost and runtime limit for every search term.",
+            "editor": "number",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 25
+        },
+        "minimumRating": {
+            "title": "Minimum Google rating",
+            "type": "number",
+            "description": "Optional post-search filter from 0 to 5.",
+            "editor": "number",
+            "minimum": 0,
+            "maximum": 5,
+            "default": 0
+        },
+        "minimumReviews": {
+            "title": "Minimum review count",
+            "type": "integer",
+            "editor": "number",
+            "minimum": 0,
+            "maximum": 1000000,
+            "default": 0
+        },
+        "enrichment": {
+            "title": "Contact refinement",
+            "type": "object",
+            "description": "Only public business contact pages are read. Personal employee lead enrichment is not requested.",
+            "editor": "json",
+            "default": {
+                "useMapsContactAddon": true,
+                "crawlBusinessWebsite": true,
+                "maxWebsitePages": 4,
+                "includeMobileNumbers": true
+            }
+        },
+        "outreach": {
+            "title": "Outreach",
+            "type": "object",
+            "description": "Off by default. Prepare creates drafts in the dataset. Send also requires mailbox secrets and an explicit lawful-basis confirmation.",
+            "editor": "json",
+            "default": {
+                "mode": "off"
+            }
+        }
+    },
+    "required": ["searchTerms", "location"]
+}

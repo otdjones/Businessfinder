@@ -1,0 +1,31 @@
+{
+    "name": "businessfinder-apify-actor",
+    "version": "0.1.0",
+    "private": true,
+    "type": "module",
+    "description": "Find local businesses, enrich public business contacts, and prepare or send compliant outreach.",
+    "engines": {
+        "node": ">=22"
+    },
+    "dependencies": {
+        "@crawlee/core": "^3.18.1",
+        "apify": "3.7.2",
+        "cheerio": "1.1.2",
+        "googleapis": "160.0.0"
+    },
+    "devDependencies": {
+        "@apify/eslint-config": "2.0.6",
+        "eslint": "9.39.5",
+        "eslint-config-prettier": "10.1.8",
+        "prettier": "3.9.0"
+    },
+    "scripts": {
+        "start": "node src/main.js",
+        "test": "node --test",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "check": "npm run format:check && npm run lint && npm test"
+    },
+    "license": "UNLICENSED"
+}
