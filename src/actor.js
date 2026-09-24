@@ -124,7 +124,7 @@ async function buildLead(place, input, runtime) {
     }
 
     return {
-        schema_version: '1.0',
+        schema_version: '1.1',
         business,
         contacts,
         qualification: scoreLead(business, contacts),
@@ -137,6 +137,35 @@ async function buildLead(place, input, runtime) {
             personal_employee_enrichment_requested: false,
         },
     };
+}
+
+function addExportFields(lead) {
+    const bestEmailRecord = lead.contacts.emails.find((email) => email.value === lead.contacts.best_email);
+    const firstMobile = lead.contacts.phones.find((phone) => phone.is_mobile);
+    const firstPhone = lead.contacts.phones.find((phone) => !phone.is_mobile) ?? lead.contacts.phones[0];
+
+    Object.assign(lead, {
+        business_name: lead.business.name,
+        category: lead.business.category,
+        address: lead.business.address,
+        city: lead.business.city,
+        postcode: lead.business.postal_code,
+        website: lead.business.website,
+        google_maps_url: lead.business.google_maps_url,
+        rating: lead.business.rating,
+        reviews: lead.business.reviews,
+        latitude: lead.business.location?.latitude ?? null,
+        longitude: lead.business.location?.longitude ?? null,
+        email: lead.contacts.best_email,
+        emails: lead.contacts.emails.map((email) => email.value),
+        email_source: bestEmailRecord?.source ?? null,
+        phone: firstPhone?.value ?? null,
+        mobile: firstMobile?.value ?? null,
+        phones: lead.contacts.phones.map((phone) => phone.value),
+        lead_score: lead.qualification.score,
+        qualification_reasons: lead.qualification.reasons,
+        outreach_status: lead.outreach.status,
+    });
 }
 
 export async function executeBusinessfinder(runtime) {
@@ -174,6 +203,7 @@ export async function executeBusinessfinder(runtime) {
             }
         }
 
+        addExportFields(lead);
         await runtime.pushData(lead);
     }
 

@@ -3,6 +3,26 @@
     "actorSpecification": 1,
     "fields": {
         "schema_version": { "type": "string" },
+        "business_name": { "type": "string" },
+        "category": { "type": ["string", "null"] },
+        "address": { "type": ["string", "null"] },
+        "city": { "type": ["string", "null"] },
+        "postcode": { "type": ["string", "null"] },
+        "website": { "type": ["string", "null"] },
+        "google_maps_url": { "type": ["string", "null"] },
+        "rating": { "type": ["number", "null"] },
+        "reviews": { "type": ["number", "null"] },
+        "latitude": { "type": ["number", "null"] },
+        "longitude": { "type": ["number", "null"] },
+        "email": { "type": ["string", "null"] },
+        "emails": { "type": "array", "items": { "type": "string" } },
+        "email_source": { "type": ["string", "null"] },
+        "phone": { "type": ["string", "null"] },
+        "mobile": { "type": ["string", "null"] },
+        "phones": { "type": "array", "items": { "type": "string" } },
+        "lead_score": { "type": "number" },
+        "qualification_reasons": { "type": "array", "items": { "type": "string" } },
+        "outreach_status": { "type": "string" },
         "business": { "type": "object" },
         "contacts": { "type": "object" },
         "qualification": { "type": "object" },
@@ -13,16 +33,40 @@
         "overview": {
             "title": "Qualified business leads",
             "transformation": {
-                "fields": ["business", "contacts", "qualification", "outreach", "provenance"]
+                "fields": [
+                    "business_name",
+                    "category",
+                    "city",
+                    "address",
+                    "postcode",
+                    "website",
+                    "email",
+                    "mobile",
+                    "phone",
+                    "rating",
+                    "reviews",
+                    "lead_score",
+                    "outreach_status",
+                    "google_maps_url"
+                ]
             },
             "display": {
                 "component": "table",
                 "properties": {
-                    "business": { "label": "Business", "format": "object" },
-                    "contacts": { "label": "Contacts", "format": "object" },
-                    "qualification": { "label": "Qualification", "format": "object" },
-                    "outreach": { "label": "Outreach", "format": "object" },
-                    "provenance": { "label": "Provenance", "format": "object" }
+                    "business_name": { "label": "Business", "format": "text" },
+                    "category": { "label": "Category", "format": "text" },
+                    "city": { "label": "City", "format": "text" },
+                    "address": { "label": "Address", "format": "text" },
+                    "postcode": { "label": "Postcode", "format": "text" },
+                    "website": { "label": "Website", "format": "link" },
+                    "email": { "label": "Best email", "format": "text" },
+                    "mobile": { "label": "UK mobile", "format": "text" },
+                    "phone": { "label": "Phone", "format": "text" },
+                    "rating": { "label": "Rating", "format": "number" },
+                    "reviews": { "label": "Reviews", "format": "number" },
+                    "lead_score": { "label": "Lead score", "format": "number" },
+                    "outreach_status": { "label": "Outreach", "format": "text" },
+                    "google_maps_url": { "label": "Google Maps", "format": "link" }
                 }
             }
         }

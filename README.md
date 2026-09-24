@@ -59,6 +59,7 @@ The confirmation is a technical safety gate, not legal advice. The operator rema
 
 Each dataset row contains:
 
+- export-ready columns for business name, category, location, website, best email, phone, UK mobile, rating, reviews, lead score, outreach status, and Google Maps URL;
 - `business`: name, category, address, website, Maps URL, rating, reviews, and location;
 - `contacts`: ranked emails, normalised phones, and `best_email`;
 - `qualification`: a transparent score and its reasons;

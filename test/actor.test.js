@@ -78,6 +78,12 @@ test('deduplicates, filters, enriches, and prepares drafts end to end', async ()
     assert.equal(pushed.length, 1);
     assert.equal(pushed[0].contacts.best_email, 'hello@acme.example');
     assert.equal(pushed[0].outreach.status, 'drafted');
+    assert.equal(pushed[0].business_name, 'Acme Accounting');
+    assert.equal(pushed[0].email, 'hello@acme.example');
+    assert.deepEqual(pushed[0].emails, ['hello@acme.example']);
+    assert.equal(pushed[0].rating, 4.8);
+    assert.equal(pushed[0].lead_score, 75);
+    assert.equal(pushed[0].outreach_status, 'drafted');
     assert.equal(summary.duplicates_removed, 1);
     assert.equal(summary.businesses_output, 1);
     assert.equal(summary.drafts_prepared, 1);
