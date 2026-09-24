@@ -4,13 +4,20 @@ const ROOT_KEYS = new Set([
     'maxResultsPerSearch',
     'minimumRating',
     'minimumReviews',
+    'servicePreset',
+    'minimumLeadScore',
+    'contactRequirement',
+    'includeUnqualified',
+    'onlyNewBusinesses',
     'enrichment',
     'outreach',
 ]);
 
 const DEFAULT_BODY = `Hello {{business_name}} team,
 
-I am getting in touch because I think our service may be relevant to your business.
+I noticed {{opportunity_summary}}
+
+I would be happy to share an idea for {{pitch_angle}}
 
 Kind regards,
 {{sender_name}}
@@ -142,15 +149,34 @@ export function validateInput(value) {
         throw new InputError('enrichment must be an object.');
     }
 
+    const servicePreset = value.servicePreset ?? 'website_redesign';
+    if (!['website_redesign', 'local_seo', 'reputation', 'general_sales'].includes(servicePreset)) {
+        throw new InputError(
+            'servicePreset must be website_redesign, local_seo, reputation, or general_sales.',
+        );
+    }
+    const contactRequirement = value.contactRequirement ?? 'email_or_phone';
+    if (!['any', 'email', 'verified_email', 'phone', 'email_or_phone'].includes(contactRequirement)) {
+        throw new InputError(
+            'contactRequirement must be any, email, verified_email, phone, or email_or_phone.',
+        );
+    }
+
     return {
         searchTerms,
         location,
         maxResultsPerSearch: boundedInteger(value.maxResultsPerSearch, 25, 1, 200, 'maxResultsPerSearch'),
         minimumRating: boundedNumber(value.minimumRating, 0, 0, 5, 'minimumRating'),
         minimumReviews: boundedInteger(value.minimumReviews, 0, 0, 1000000, 'minimumReviews'),
+        servicePreset,
+        minimumLeadScore: boundedInteger(value.minimumLeadScore, 45, 0, 100, 'minimumLeadScore'),
+        contactRequirement,
+        includeUnqualified: value.includeUnqualified === true,
+        onlyNewBusinesses: value.onlyNewBusinesses === true,
         enrichment: {
-            useMapsContactAddon: enrichmentValue.useMapsContactAddon !== false,
+            useMapsContactAddon: enrichmentValue.useMapsContactAddon === true,
             crawlBusinessWebsite: enrichmentValue.crawlBusinessWebsite !== false,
+            verifyEmailDomains: enrichmentValue.verifyEmailDomains !== false,
             maxWebsitePages: boundedInteger(
                 enrichmentValue.maxWebsitePages,
                 4,

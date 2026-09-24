@@ -17,6 +17,13 @@ const ROLE_PREFIXES = new Set([
     'support',
     'team',
 ]);
+const SOCIAL_HOSTS = {
+    facebook: /(^|\.)facebook\.com$/i,
+    instagram: /(^|\.)instagram\.com$/i,
+    linkedin: /(^|\.)linkedin\.com$/i,
+    x: /(^|\.)(?:x|twitter)\.com$/i,
+    youtube: /(^|\.)youtube\.com$/i,
+};
 
 export function normalizeEmail(value) {
     if (typeof value !== 'string') return null;
@@ -89,6 +96,7 @@ export function extractContactsFromHtml(html, pageUrl) {
     const emails = [];
     const phones = [];
     const links = [];
+    const socials = {};
 
     for (const match of text.matchAll(EMAIL_PATTERN)) emails.push(normalizeEmail(match[0]));
     for (const match of text.matchAll(PHONE_PATTERN)) phones.push(classifyPhone(match[0]));
@@ -99,7 +107,11 @@ export function extractContactsFromHtml(html, pageUrl) {
         if (/^mailto:/i.test(href)) emails.push(normalizeEmail(href));
         if (/^tel:/i.test(href)) phones.push(classifyPhone(href.replace(/^tel:/i, '')));
         try {
-            links.push(new URL(href, pageUrl).href);
+            const link = new URL(href, pageUrl);
+            links.push(link.href);
+            for (const [network, pattern] of Object.entries(SOCIAL_HOSTS)) {
+                if (pattern.test(link.hostname)) socials[network] ??= link.href;
+            }
         } catch {
             // Ignore malformed page links.
         }
@@ -109,6 +121,22 @@ export function extractContactsFromHtml(html, pageUrl) {
         emails: [...new Set(emails.filter(Boolean))],
         phones: uniqueByValue(phones),
         links: [...new Set(links)],
+        socials,
+        document: {
+            text,
+            title: $('title').first().text().trim(),
+            metaDescription: $('meta[name="description"]').first().attr('content')?.trim() ?? '',
+            hasMobileViewport: $('meta[name="viewport"]').length > 0,
+            hasContactForm:
+                $('form').filter((_index, form) => {
+                    const formHtml = $.html(form);
+                    return /(?:type=["']?(?:email|tel)|contact|enquir|message)/i.test(formHtml);
+                }).length > 0,
+            interactiveText: $('a, button')
+                .map((_index, element) => `${$(element).text()} ${$(element).attr('href') ?? ''}`)
+                .get()
+                .join(' '),
+        },
     };
 }
 
@@ -150,6 +178,7 @@ export function contactsFromMapsPlace(place) {
                 .map((email) => classifyEmail(email, hostname)),
         ),
         phones: uniqueByValue(phoneValues.map(classifyPhone)),
+        socials: {},
     };
 }
 
@@ -165,16 +194,22 @@ export function mergeContacts(mapContacts, websiteContacts, website) {
         ...websiteContacts.emails.map((email) => ({
             ...classifyEmail(email, hostname),
             source: 'business_website',
+            source_url: websiteContacts.emailSources?.[email] ?? null,
         })),
     ].filter((item) => item.value);
     const phones = [
         ...mapContacts.phones.map((item) => ({ ...item, source: 'google_maps' })),
-        ...websiteContacts.phones.map((item) => ({ ...item, source: 'business_website' })),
+        ...websiteContacts.phones.map((item) => ({
+            ...item,
+            source: 'business_website',
+            source_url: websiteContacts.phoneSources?.[item.value] ?? null,
+        })),
     ];
 
     return {
         emails: uniqueByValue(emails).sort((a, b) => b.score - a.score),
         phones: uniqueByValue(phones),
         best_email: uniqueByValue(emails).sort((a, b) => b.score - a.score)[0]?.value ?? null,
+        socials: { ...(mapContacts.socials ?? {}), ...(websiteContacts.socials ?? {}) },
     };
 }

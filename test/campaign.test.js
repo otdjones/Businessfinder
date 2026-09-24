@@ -7,6 +7,10 @@ import { encodeMessage } from '../src/gmail.js';
 const lead = {
     business: { name: 'Acme Gardens', category: 'Garden centre', city: 'Bristol' },
     contacts: { best_email: 'hello@acme.example' },
+    opportunity: {
+        summary: 'Website redesign: no mobile viewport was detected.',
+        pitch_angle: 'Offer a clearer website.',
+    },
 };
 
 const outreach = {

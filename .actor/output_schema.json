@@ -12,6 +12,11 @@
             "type": "string",
             "title": "Run summary",
             "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/RUN_SUMMARY"
+        },
+        "runReport": {
+            "type": "string",
+            "title": "Readable run report",
+            "template": "{{links.apiDefaultKeyValueStoreUrl}}/records/RUN_REPORT"
         }
     }
 }

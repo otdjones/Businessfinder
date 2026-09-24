@@ -2,9 +2,9 @@
     "$schema": "https://apify.com/schemas/v1/actor.ide.json",
     "actorSpecification": 1,
     "name": "businessfinder",
-    "title": "Businessfinder — Maps Leads & Outreach",
-    "description": "Finds local businesses through Google Maps, refines public business contact details, and prepares or sends permission-aware email outreach.",
-    "version": "0.1",
+    "title": "UK Business Opportunity Finder — Verified Leads",
+    "description": "Finds contactable local businesses, detects website, SEO, and reputation opportunities, verifies email domains, and returns CRM-ready leads with evidence.",
+    "version": "0.2",
     "buildTag": "latest",
     "usesStandbyMode": false,
     "meta": {

@@ -1,7 +1,7 @@
 {
     "$schema": "https://apify.com/schemas/v1/input.ide.json",
     "title": "Businessfinder input",
-    "description": "Search Google Maps for businesses, refine public business contact details, and optionally prepare or send outreach.",
+    "description": "Find contactable businesses with a specific website, local SEO, or reputation opportunity. Results include evidence, lead scoring, and CRM-ready fields.",
     "type": "object",
     "schemaVersion": 1,
     "additionalProperties": false,
@@ -51,14 +51,62 @@
             "maximum": 1000000,
             "default": 0
         },
+        "servicePreset": {
+            "title": "Service opportunity to find",
+            "type": "string",
+            "description": "Select the problem you sell a solution for. Businessfinder will explain the evidence behind every opportunity.",
+            "editor": "select",
+            "enum": ["website_redesign", "local_seo", "reputation", "general_sales"],
+            "enumTitles": ["Website redesign", "Local SEO", "Reputation growth", "General B2B prospecting"],
+            "default": "website_redesign"
+        },
+        "minimumLeadScore": {
+            "title": "Minimum qualified-lead score",
+            "type": "integer",
+            "description": "Only leads meeting this combined contactability and opportunity score are returned by default.",
+            "editor": "number",
+            "minimum": 0,
+            "maximum": 100,
+            "default": 45
+        },
+        "contactRequirement": {
+            "title": "Required contact method",
+            "type": "string",
+            "description": "Choose the minimum contact information a qualified lead must contain.",
+            "editor": "select",
+            "enum": ["email_or_phone", "verified_email", "email", "phone", "any"],
+            "enumTitles": [
+                "Email or phone",
+                "MX-verified email",
+                "Any public email",
+                "Phone",
+                "No contact requirement"
+            ],
+            "default": "email_or_phone"
+        },
+        "onlyNewBusinesses": {
+            "title": "Return only new businesses",
+            "type": "boolean",
+            "description": "Remember qualified businesses for this search and omit them from later scheduled runs.",
+            "editor": "checkbox",
+            "default": false
+        },
+        "includeUnqualified": {
+            "title": "Include unqualified candidates",
+            "type": "boolean",
+            "description": "Diagnostic option. Leave off for a clean list containing only qualified opportunities.",
+            "editor": "checkbox",
+            "default": false
+        },
         "enrichment": {
             "title": "Contact refinement",
             "type": "object",
             "description": "Only public business contact pages are read. Personal employee lead enrichment is not requested.",
             "editor": "json",
             "default": {
-                "useMapsContactAddon": true,
+                "useMapsContactAddon": false,
                 "crawlBusinessWebsite": true,
+                "verifyEmailDomains": true,
                 "maxWebsitePages": 4,
                 "includeMobileNumbers": true
             }

@@ -8,7 +8,7 @@ test('builds a Maps request without reviewer or employee personal-data enrichmen
     const input = validateInput({ searchTerms: ['cafes'], location: 'Bath' });
     const mapsInput = buildMapsInput(input);
     assert.deepEqual(mapsInput.searchStringsArray, ['cafes']);
-    assert.equal(mapsInput.scrapeContacts, true);
+    assert.equal(mapsInput.scrapeContacts, false);
     assert.equal(mapsInput.maximumLeadsEnrichmentRecords, 0);
     assert.equal(mapsInput.scrapeReviewsPersonalData, false);
     assert.equal(mapsInput.maxReviews, 0);
@@ -62,6 +62,18 @@ test('deduplicates, filters, enriches, and prepares drafts end to end', async ()
             emails: ['hello@acme.example'],
             phones: [],
             pages: ['https://acme.example/'],
+            signals: {
+                status: 'checked',
+                secure_https: true,
+                mobile_viewport: false,
+                contact_form: false,
+                booking_cta: false,
+                analytics_detected: false,
+                page_title_present: false,
+                meta_description_present: false,
+                copyright_year: 2020,
+                outdated_copyright: true,
+            },
             error: null,
         }),
         getEmailSender: () => {
@@ -82,9 +94,56 @@ test('deduplicates, filters, enriches, and prepares drafts end to end', async ()
     assert.equal(pushed[0].email, 'hello@acme.example');
     assert.deepEqual(pushed[0].emails, ['hello@acme.example']);
     assert.equal(pushed[0].rating, 4.8);
-    assert.equal(pushed[0].lead_score, 75);
+    assert.equal(pushed[0].lead_score, 64);
+    assert.equal(pushed[0].is_qualified, true);
+    assert.equal(pushed[0].opportunity_type, 'Website redesign');
+    assert.match(pushed[0].pitch_angle, /mobile viewport/i);
     assert.equal(pushed[0].outreach_status, 'drafted');
     assert.equal(summary.duplicates_removed, 1);
     assert.equal(summary.businesses_output, 1);
+    assert.equal(summary.qualified_leads, 1);
     assert.equal(summary.drafts_prepared, 1);
+});
+
+test('scheduled mode skips previously delivered businesses and remembers new output', async () => {
+    const pushed = [];
+    let remembered = [];
+    const result = await executeBusinessfinder({
+        getInput: async () => ({
+            searchTerms: ['roofers'],
+            location: 'Leeds, UK',
+            servicePreset: 'reputation',
+            minimumLeadScore: 0,
+            contactRequirement: 'any',
+            onlyNewBusinesses: true,
+            enrichment: { verifyEmailDomains: false },
+        }),
+        runMaps: async () => ({
+            runId: 'run-2',
+            items: [
+                { placeId: 'one', title: 'Already delivered' },
+                { placeId: 'two', title: 'New business' },
+            ],
+        }),
+        enrichWebsite: async () => ({
+            emails: [],
+            phones: [],
+            pages: [],
+            signals: { status: 'no_website' },
+            error: null,
+        }),
+        getSeenLeadKeys: async () => ['one'],
+        rememberSeenLeadKeys: async (_scope, keys) => {
+            remembered = keys;
+        },
+        getEmailSender: () => null,
+        delay: async () => {},
+        pushData: async (lead) => pushed.push(lead),
+        setSummary: async () => {},
+    });
+
+    assert.equal(result.leads.length, 1);
+    assert.equal(result.leads[0].business_name, 'New business');
+    assert.deepEqual(remembered, ['two']);
+    assert.equal(pushed.length, 1);
 });

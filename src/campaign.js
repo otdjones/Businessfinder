@@ -13,6 +13,8 @@ export function createDraft(lead, outreach) {
         business_name: lead.business.name,
         business_category: lead.business.category ?? '',
         business_city: lead.business.city ?? '',
+        opportunity_summary: lead.opportunity.summary,
+        pitch_angle: lead.opportunity.pitch_angle,
         sender_name: outreach.fromName,
         sender_postal_address: outreach.senderPostalAddress,
         unsubscribe_url: outreach.unsubscribeUrl,

@@ -1,6 +1,6 @@
 {
     "name": "businessfinder-apify-actor",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "private": true,
     "type": "module",
     "description": "Find local businesses, enrich public business contacts, and prepare or send compliant outreach.",

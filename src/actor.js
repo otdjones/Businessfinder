@@ -1,6 +1,10 @@
+import { createHash } from 'node:crypto';
+
 import { createDraft, outreachDecision } from './campaign.js';
 import { contactsFromMapsPlace, mergeContacts } from './contacts.js';
+import { markEmailsNotChecked } from './email-verification.js';
 import { validateInput } from './input.js';
+import { assessOpportunity, scoreQualification } from './opportunity.js';
 
 export const MAPS_ACTOR_ID = 'compass/crawler-google-places';
 
@@ -61,41 +65,27 @@ function dedupePlaces(places) {
     return [...unique.values()];
 }
 
+export function businessKey(business) {
+    return (
+        business.id ??
+        `${business.name.toLowerCase()}|${(business.address ?? business.website ?? '').toLowerCase()}`
+    );
+}
+
+export function historyScopeKey(input) {
+    const scope = JSON.stringify({
+        searchTerms: [...input.searchTerms].sort(),
+        location: input.location.toLowerCase(),
+        servicePreset: input.servicePreset,
+    });
+    return `SEEN_${createHash('sha256').update(scope).digest('hex').slice(0, 32)}`;
+}
+
 function qualifies(business, input) {
     if (business.permanently_closed || business.temporarily_closed) return false;
     if (input.minimumRating > 0 && (business.rating ?? 0) < input.minimumRating) return false;
     if (input.minimumReviews > 0 && (business.reviews ?? 0) < input.minimumReviews) return false;
     return true;
-}
-
-function scoreLead(business, contacts) {
-    let score = 0;
-    const reasons = [];
-    if (business.website) {
-        score += 15;
-        reasons.push('has_website');
-    }
-    if (contacts.best_email) {
-        score += 40;
-        reasons.push('has_public_business_email');
-    }
-    if (contacts.phones.length > 0) {
-        score += 15;
-        reasons.push('has_phone');
-    }
-    if (contacts.phones.some((phone) => phone.is_mobile)) {
-        score += 10;
-        reasons.push('has_uk_mobile');
-    }
-    if ((business.rating ?? 0) >= 4) {
-        score += 10;
-        reasons.push('rating_at_least_4');
-    }
-    if ((business.reviews ?? 0) >= 10) {
-        score += 10;
-        reasons.push('at_least_10_reviews');
-    }
-    return { score, reasons };
 }
 
 async function mapLimit(items, concurrency, mapper) {
@@ -117,17 +107,40 @@ async function buildLead(place, input, runtime) {
     const mapContacts = contactsFromMapsPlace(place);
     const websiteContacts = input.enrichment.crawlBusinessWebsite
         ? await runtime.enrichWebsite(business.website, input.enrichment.maxWebsitePages)
-        : { emails: [], phones: [], pages: [], error: null };
-    const contacts = mergeContacts(mapContacts, websiteContacts, business.website);
+        : {
+              emails: [],
+              emailSources: {},
+              phones: [],
+              phoneSources: {},
+              socials: {},
+              pages: [],
+              signals: {
+                  status: business.website ? 'not_checked' : 'no_website',
+                  secure_https: business.website?.startsWith('https://') ?? false,
+              },
+              error: null,
+          };
+    let contacts = mergeContacts(mapContacts, websiteContacts, business.website);
     if (!input.enrichment.includeMobileNumbers) {
         contacts.phones = contacts.phones.filter((phone) => !phone.is_mobile);
     }
+    contacts =
+        input.enrichment.verifyEmailDomains && runtime.verifyContacts
+            ? await runtime.verifyContacts(contacts)
+            : markEmailsNotChecked(contacts);
+    const websiteSignals = websiteContacts.signals ?? {
+        status: business.website ? 'unavailable' : 'no_website',
+        secure_https: business.website?.startsWith('https://') ?? false,
+    };
+    const opportunity = assessOpportunity(business, contacts, websiteSignals, input.servicePreset);
 
     return {
-        schema_version: '1.1',
+        schema_version: '2.0',
         business,
         contacts,
-        qualification: scoreLead(business, contacts),
+        website_signals: websiteSignals,
+        opportunity,
+        qualification: scoreQualification(business, contacts, opportunity, input),
         outreach: { status: 'not_requested' },
         provenance: {
             maps_actor: MAPS_ACTOR_ID,
@@ -135,6 +148,7 @@ async function buildLead(place, input, runtime) {
             website_pages_checked: websiteContacts.pages,
             website_enrichment_error: websiteContacts.error,
             personal_employee_enrichment_requested: false,
+            collected_at: new Date().toISOString(),
         },
     };
 }
@@ -159,26 +173,50 @@ function addExportFields(lead) {
         email: lead.contacts.best_email,
         emails: lead.contacts.emails.map((email) => email.value),
         email_source: bestEmailRecord?.source ?? null,
+        email_source_url: bestEmailRecord?.source_url ?? null,
+        email_verification: bestEmailRecord?.verification_status ?? null,
+        email_mx_valid: bestEmailRecord?.mx_valid ?? null,
         phone: firstPhone?.value ?? null,
         mobile: firstMobile?.value ?? null,
         phones: lead.contacts.phones.map((phone) => phone.value),
         lead_score: lead.qualification.score,
+        is_qualified: lead.qualification.is_qualified,
+        opportunity_type: lead.opportunity.type,
+        opportunity_score: lead.opportunity.score,
+        primary_issue: lead.opportunity.primary_issue,
+        opportunity_summary: lead.opportunity.summary,
+        pitch_angle: lead.opportunity.pitch_angle,
+        website_issues: lead.opportunity.issues.map((issue) => issue.label),
+        facebook: lead.contacts.socials.facebook ?? null,
+        instagram: lead.contacts.socials.instagram ?? null,
+        linkedin: lead.contacts.socials.linkedin ?? null,
         qualification_reasons: lead.qualification.reasons,
         outreach_status: lead.outreach.status,
     });
 }
 
 export async function executeBusinessfinder(runtime) {
+    const startedAt = Date.now();
     const input = validateInput(await runtime.getInput());
     const sender = input.outreach.mode === 'send' ? runtime.getEmailSender() : null;
     const mapsResult = await runtime.runMaps(buildMapsInput(input));
     const uniquePlaces = dedupePlaces(mapsResult.items);
     const filteredPlaces = uniquePlaces.filter((place) => qualifies(normalizeBusiness(place), input));
-    const leads = await mapLimit(filteredPlaces, 4, (place) => buildLead(place, input, runtime));
+    const scopeKey = historyScopeKey(input);
+    const seenKeys = input.onlyNewBusinesses
+        ? new Set((await runtime.getSeenLeadKeys?.(scopeKey)) ?? [])
+        : new Set();
+    const unseenPlaces = filteredPlaces.filter(
+        (place) => !seenKeys.has(businessKey(normalizeBusiness(place))),
+    );
+    const candidateLeads = await mapLimit(unseenPlaces, 4, (place) => buildLead(place, input, runtime));
+    const qualifiedLeads = candidateLeads.filter((lead) => lead.qualification.is_qualified);
+    const leads = input.includeUnqualified ? candidateLeads : qualifiedLeads;
 
     let actionCount = 0;
     let sentCount = 0;
     let sendFailures = 0;
+    const outputLeads = [];
     for (const lead of leads) {
         const decision = outreachDecision(lead, input.outreach, actionCount);
         lead.outreach = decision;
@@ -204,27 +242,73 @@ export async function executeBusinessfinder(runtime) {
         }
 
         addExportFields(lead);
-        await runtime.pushData(lead);
+        const pushResult = await runtime.pushData(lead, lead.qualification.is_qualified);
+        if (pushResult?.eventChargeLimitReached && pushResult.chargedCount === 0) break;
+        outputLeads.push(lead);
     }
 
+    if (input.onlyNewBusinesses && runtime.rememberSeenLeadKeys) {
+        await runtime.rememberSeenLeadKeys(
+            scopeKey,
+            outputLeads
+                .filter((lead) => lead.qualification.is_qualified)
+                .map((lead) => businessKey(lead.business)),
+        );
+    }
+
+    const outputQualifiedLeads = outputLeads.filter((lead) => lead.qualification.is_qualified);
+    const countWith = (predicate) => outputQualifiedLeads.filter(predicate).length;
+    const rate = (count) =>
+        outputQualifiedLeads.length > 0
+            ? Number(((count / outputQualifiedLeads.length) * 100).toFixed(1))
+            : 0;
+    const emailCount = countWith((lead) => lead.contacts.best_email);
+    const verifiedEmailCount = countWith((lead) =>
+        lead.contacts.emails.some(
+            (email) => email.value === lead.contacts.best_email && email.mx_valid === true,
+        ),
+    );
+    const phoneCount = countWith((lead) => lead.contacts.phones.length > 0);
+    const mobileCount = countWith((lead) => lead.contacts.phones.some((phone) => phone.is_mobile));
     const summary = {
-        schema_version: '1.0',
+        schema_version: '2.0',
         status: sendFailures > 0 ? 'COMPLETED_WITH_SEND_FAILURES' : 'COMPLETED',
         search_terms: input.searchTerms,
         location: input.location,
         maps_actor_run_id: mapsResult.runId ?? null,
         maps_places_received: mapsResult.items.length,
         duplicates_removed: mapsResult.items.length - uniquePlaces.length,
-        businesses_output: leads.length,
-        businesses_with_email: leads.filter((lead) => lead.contacts.best_email).length,
-        businesses_with_uk_mobile: leads.filter((lead) =>
-            lead.contacts.phones.some((phone) => phone.is_mobile),
-        ).length,
+        excluded_by_map_filters: uniquePlaces.length - filteredPlaces.length,
+        previously_delivered_excluded: filteredPlaces.length - unseenPlaces.length,
+        candidates_enriched: candidateLeads.length,
+        qualified_leads_found: qualifiedLeads.length,
+        qualified_leads: outputQualifiedLeads.length,
+        unqualified_leads: candidateLeads.length - qualifiedLeads.length,
+        businesses_output: outputLeads.length,
+        businesses_with_email: emailCount,
+        businesses_with_verified_email: verifiedEmailCount,
+        businesses_with_phone: phoneCount,
+        businesses_with_uk_mobile: mobileCount,
+        email_fill_rate_percent: rate(emailCount),
+        verified_email_fill_rate_percent: rate(verifiedEmailCount),
+        phone_fill_rate_percent: rate(phoneCount),
+        uk_mobile_fill_rate_percent: rate(mobileCount),
+        service_preset: input.servicePreset,
+        minimum_lead_score: input.minimumLeadScore,
+        contact_requirement: input.contactRequirement,
+        only_new_businesses: input.onlyNewBusinesses,
+        opportunity_types: Object.fromEntries(
+            [...new Set(outputQualifiedLeads.map((lead) => lead.opportunity.type))].map((type) => [
+                type,
+                outputQualifiedLeads.filter((lead) => lead.opportunity.type === type).length,
+            ]),
+        ),
         outreach_mode: input.outreach.mode,
         drafts_prepared: input.outreach.mode === 'prepare' ? actionCount : 0,
         messages_sent: sentCount,
         send_failures: sendFailures,
+        runtime_seconds: Number(((Date.now() - startedAt) / 1000).toFixed(1)),
     };
     await runtime.setSummary(summary);
-    return { leads, summary };
+    return { leads: outputLeads, summary };
 }

@@ -5,6 +5,46 @@ import { extractContactsFromHtml } from './contacts.js';
 
 const MAX_PAGE_BYTES = 1024 * 1024;
 const CONTACT_PATH = /(?:contact|about|enquir|reach-us|get-in-touch)/i;
+const BOOKING_PATTERN =
+    /(?:book|appointment|reserve|request[-\s]?a?[-\s]?quote|free[-\s]?estimate|consultation)/i;
+const ANALYTICS_PATTERN =
+    /(?:googletagmanager\.com|google-analytics\.com|gtag\s*\(|fbq\s*\(|connect\.facebook\.net|plausible\.io|matomo|clarity\.ms)/i;
+
+function emptySignals(website) {
+    return {
+        status: website ? 'unavailable' : 'no_website',
+        secure_https: website ? null : false,
+        mobile_viewport: null,
+        contact_form: null,
+        booking_cta: null,
+        analytics_detected: null,
+        page_title_present: null,
+        meta_description_present: null,
+        copyright_year: null,
+        outdated_copyright: null,
+    };
+}
+
+export function inspectWebsiteHtml(html, pageUrl, currentYear = new Date().getUTCFullYear()) {
+    const $ = extractContactsFromHtml(html, 'https://inspection.invalid/').document;
+    const copyrightYears = [...$.text.matchAll(/(?:©|&copy;|copyright)\s*(?:19|20)\d{2}/gi)]
+        .map((match) => Number(match[0].match(/(?:19|20)\d{2}/)?.[0]))
+        .filter(Number.isFinite);
+    const copyrightYear = copyrightYears.length > 0 ? Math.max(...copyrightYears) : null;
+
+    return {
+        status: 'checked',
+        secure_https: new URL(pageUrl).protocol === 'https:',
+        mobile_viewport: $.hasMobileViewport,
+        contact_form: $.hasContactForm,
+        booking_cta: BOOKING_PATTERN.test($.interactiveText),
+        analytics_detected: ANALYTICS_PATTERN.test(html),
+        page_title_present: $.title.length >= 3,
+        meta_description_present: $.metaDescription.length >= 20,
+        copyright_year: copyrightYear,
+        outdated_copyright: copyrightYear === null ? null : copyrightYear < currentYear - 2,
+    };
+}
 
 function isPrivateIpv4(address) {
     const parts = address.split('.').map(Number);
@@ -121,18 +161,41 @@ export async function enrichWebsite(
     maxPages,
     { fetchImplementation = globalThis.fetch, lookup = dns.lookup } = {},
 ) {
-    if (!website) return { emails: [], phones: [], pages: [], error: null };
+    if (!website)
+        return {
+            emails: [],
+            emailSources: {},
+            phones: [],
+            phoneSources: {},
+            socials: {},
+            pages: [],
+            signals: emptySignals(null),
+            error: null,
+        };
     let root;
     try {
         root = await assertPublicUrl(website, lookup);
     } catch (error) {
-        return { emails: [], phones: [], pages: [], error: error.message };
+        return {
+            emails: [],
+            emailSources: {},
+            phones: [],
+            phoneSources: {},
+            socials: {},
+            pages: [],
+            signals: emptySignals(website),
+            error: error.message,
+        };
     }
 
     const queue = [root.href];
     const visited = new Set();
     const emails = new Set();
     const phones = new Map();
+    const emailSources = {};
+    const phoneSources = {};
+    const socials = {};
+    let signals = emptySignals(website);
     let lastError = null;
 
     while (queue.length > 0 && visited.size < maxPages) {
@@ -142,8 +205,20 @@ export async function enrichWebsite(
         try {
             const { html, finalUrl } = await safeFetchHtml(nextUrl, fetchImplementation, lookup);
             const extracted = extractContactsFromHtml(html, finalUrl);
-            extracted.emails.forEach((email) => emails.add(email));
-            extracted.phones.forEach((phone) => phones.set(phone.value, phone));
+            if (signals.status !== 'checked') signals = inspectWebsiteHtml(html, finalUrl);
+            else {
+                signals.contact_form ||= extracted.document.hasContactForm;
+                signals.booking_cta ||= BOOKING_PATTERN.test(extracted.document.interactiveText);
+            }
+            extracted.emails.forEach((email) => {
+                emails.add(email);
+                emailSources[email] ??= finalUrl;
+            });
+            extracted.phones.forEach((phone) => {
+                phones.set(phone.value, phone);
+                phoneSources[phone.value] ??= finalUrl;
+            });
+            Object.assign(socials, extracted.socials);
             for (const link of extracted.links) {
                 const candidate = new URL(link);
                 if (
@@ -161,8 +236,12 @@ export async function enrichWebsite(
 
     return {
         emails: [...emails],
+        emailSources,
         phones: [...phones.values()],
+        phoneSources,
+        socials,
         pages: [...visited],
+        signals,
         error: emails.size === 0 && phones.size === 0 ? lastError : null,
     };
 }
